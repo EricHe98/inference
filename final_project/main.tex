@@ -1,0 +1,120 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{biblatex}
+\addbibresource{references.bib}
+
+\title{Inferential Methods for Protein Folding}
+\author{Eric He}
+\date{November 2019}
+
+\begin{document}
+
+\maketitle
+
+\section*{Abstract}
+The problem of protein folding is centered around understanding how the chain of amino acids comprising a protein folds into its stable, low-energy conformation. Though the laws of physics which govern the process are well-defined, naively using them to simulate folding is computationally intractable. As a result, the protein folding field makes heavy use of statistical methods to infer the structures of unknown proteins based on their similarities to known structures. 
+
+This paper considers the protein folding problem from the inferential perspective. We identify the disparate sources of data which yield information about protein structure, and discuss inferential methods designed to mine that data. The methods covered are:
+
+\begin{itemize}
+    \item Bayesian scoring for deriving empirical, "knowledge-based" energy functions which are easier to minimize than the true thermodynamic energy
+    \item Monte Carlo methods, such as simulated annealing, stochastic tunneling, and parallel tempering for optimizing energy functions
+    \item Some uses of probabilistic graphical models for analysis and inference, namely:
+    \begin{itemize}
+        \item Markov State Models and Variational Auto-Encoders for aggregating data from protein folding simulations
+        \item Markov Random Fields for modeling protein structures
+        \item Hidden Markov Models for inferring evolutionary relationships between different amino acid sequences
+    \end{itemize}
+\end{itemize}
+
+\newpage
+\tableofcontents
+\newpage
+
+\section{The importance of protein folding, in brief}
+Proteins govern nearly all biological processes, such as metabolizing food, transporting molecules, or providing structure to cells. A protein is created as a sequence of amino acid polymers, which \textit{folds} into a three-dimensional structure or \textbf{conformation} according to the physics of the amino acids comprising them and external forces such as water molecules or other proteins. For the vast majority of proteins, there is only one unique shape which the protein settles into, termed the \textbf{native conformation} or \textbf{native state}.
+
+The native conformation determines a protein's ability to form chemical bonds with other molecules. In turn, a protein's chemical bonding properties determines its ability to perform its desired function; thus, it is commonly said that a protein's structure informs its function. The practical benefits of understanding a protein's native state include, but are not limited to:
+
+\begin{itemize}
+    \item modeling the dynamics of a protein's properties under mutations or misfoldings, especially in relation to diseases caused by malfunctioning proteins
+    \item discovering drugs which allow us to control the activation or deactivation of target proteins
+    \item identifying and tracing a protein's function through the course of its evolutionary history
+\end{itemize}
+
+Unfortunately, the minuscule size of proteins make it extremely difficult to discover their structures, and so the only known information of most proteins are their amino acid sequences. Filling this gap is the goal of the protein folding problem. From a practical perspective, a mapping between a protein's sequence data and its corresponding structure would link what is known about a protein and what is needed to be known in order to usefully work with it. But more broadly, understanding protein structure provides the theoretical scaffolding needed to analyze biological systems as an emergent product of their underlying components.
+
+\section{The physics of protein folding, in brief}
+The protein folding process is governed entirely by physical laws. The primary ones are:
+
+\begin{enumerate}
+    \item The formation of hydrogen bonds between an amino acid residue with other residues in the chain, or the surrounding solvent
+    \item van der Waals forces which attract or repel nearby atoms based on their electrostatic charges
+    \item Chemical affinities towards the solvent, e.g. hydrophobia of certain molecules to water
+\end{enumerate}
+
+Many of the above forces are functions of temperature and acidity. Moreover, the presence of salts, folding catalysts, or \textit{molecular chaperones} can regulate the environment in which the protein folds.
+
+Each of these forces push the amino acid chain towards conformations that lower the \textbf{Gibbs free energy}. The native conformation is typically attained when the free energy is globally minimized, but sometimes proteins can be trapped in a conformation which attains only a local energy minimum. Having proteins \textit{misfold} in such a manner is a known or suspected cause of many diseases such as Alzheimer's or Huntington's.
+
+millisecond timescales make it impossible to capture the folding process in real time
+
+\cite{md}
+
+
+
+
+\subsubsection{Imaging methods are complex and expensive}
+50k per protein, not always successful
+
+\subsubsection{Simulating the folding process is computationally intractable}
+
+
+\begin{align}
+&0 = -Dx + Dt + Dcx + DI \\
+&\implies Dx - Dcx = Dt - DI  \\
+&\implies x(D - Dc) = DT - DI \\
+&\implies x = \dfrac{DT - DI}{D - Dc) = \dfrac{T - I}{1 - c} \\
+\end{align}
+
+$\implies x = \frac{DT - DI}{D - Dc) = \frac{T - I}{1 - c} \\$
+
+\subsubsection{Levinthal's paradox}
+The protein folding process is almost surely determined and most information in folding is irrelevant
+
+\paragraph{Anton}
+
+\paragraph{Force fields are not well developed}
+
+\subsection{Levels of structure of a protein, their corresponding complexities and analysis methods}
+The number of known folds is low. Closely related sequences tend to be close in structure. We can leverage data to get starting "templates" instead of recomputing everything from scratch.
+
+\subsubsection{Primary structure}
+120 different amino acids, chains can be tens of thousands long
+
+\paragraph{Sequence homology}
+
+\subsubsection{Secondary structure}
+Can be classified into $\alpha$-helices and $\beta$-sheets.
+
+Fragment libraries
+
+\paragraph{Threading}
+
+\subsubsection{Tertiary structure}
+Only about 1000 general forms, but the number of angles, contacts, etc. are legion
+
+\paragraph{Imaged structures deposited in the Protein Data Bank}
+
+\paragraph{Folding trajectories from molecular dynamics simulations}
+
+\paragraph{Guesses from existing folding software}
+
+\subsubsection{Quaternary structure}
+
+\subsection{Knowledge-based energy functions derived from data of known structures}
+
+
+\printbibliography
+
+\end{document}
