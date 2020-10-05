@@ -6,7 +6,7 @@
 \usepackage{amsmath}
 \addbibresource{references.bib}
 
-\title{A Survey of Inferential Methods Applied to the Problem of Protein Folding}
+\title{Markov State Models for Molecular Dynamics Protein Folding Simulations}
 \author{Eric He}
 \date{November 2019}
 
@@ -15,20 +15,11 @@
 \maketitle
 
 \section*{Abstract}
-The problem of protein folding is centered around understanding how the chain of amino acids comprising a protein folds into its stable, low-energy conformation. Though the laws of physics which govern the process are well-defined, naively using them to simulate folding is computationally intractable. As a result, the protein folding field makes heavy use of statistical methods to infer the structures of unknown proteins based on their similarities to known structures. 
+The problem of protein folding is centered around understanding how the chain of amino acids comprising a protein folds into its stable, low-energy conformation. Because the laws of physics which govern the process are well-defined, protein folding can be simulated on computers. However, doing so requires a tremendous amount of computation and generates a large amount of folding data. 
 
-This paper considers the protein folding problem from the inferential perspective. Special attention is given to how standard probabilistic techniques are adapted to various use cases in the protein folding problem, such as analyzing molecular dynamics simulations or stitching together noisy protein sequence data obtained from genomic sequencing. The methods covered are:
+This paper explains how to build Markov State Models to analyze protein folding data. As a form of probabilistic graph, Markov State Models can be used to process folding data generated from molecular dynamics data into a human-interpretable representation. Under the Markov State Model framework, protein folding is viewed as a probabilistic process rather than a deterministic one, and uncertainty around estimates can be quantified and used to focus simulation efforts to reduce the number of computations needed by two orders of magnitude.
 
-\begin{itemize}
-    \item Bayesian scoring for deriving empirical, "knowledge-based" energy functions which are easier to minimize than the true thermodynamic energy
-    \item Monte Carlo methods, such as simulated annealing, stochastic tunneling, and parallel tempering for optimizing energy functions
-    \item Some uses of probabilistic graphical models for analysis and inference, namely:
-    \begin{itemize}
-        \item Markov State Models and Variational Auto-Encoders for aggregating data from protein folding simulations
-        \item Markov Random Fields for modeling protein structures
-        \item Hidden Markov Models for inferring evolutionary relationships between different amino acid sequences
-    \end{itemize}
-\end{itemize}
+Note: I did not realize the report was only meant to have 4 pages. Given this information, I decided it would be better to trim the survey to just the molecular dynamics section, since I believe depth is preferred to breadth.
 
 \newpage
 \tableofcontents
@@ -139,7 +130,7 @@ The MLE, however, can lead to noisy estimates for sparsely sampled microstates. 
 
 $$\pi_i T_{ij} = \pi_j T_{ji}$$
 
-where $\pi_i$ is the stationary probability of being in state $i$.
+\noindent where $\pi_i$ is the stationary probability of being in state $i$.
 
 Thus, a more principled way of estimating the transition probabilities is to restrict the space of Markov chains to the ones satisfying detailed balance. A closed-form solution for the MLE reversible Markov chain $X$ in this space is given by the following equation:
 
@@ -224,100 +215,8 @@ Given a fixed number of additional samples $m$ to generate, states should be ran
 
 The results of these $m$ simulations can be used to recompute the estimate of $T$ and determine the next state to simulate $m$ times.
 
-\section{Heuristics for structure prediction must exist}
-Moving away from MD methods, we now consider directly predicting the resting conformation given the amino acid sequence. This line of inquiry is motivated by the following observation: in nature, proteins regularly attain their resting conformations under a diverse set of initial conditions. The consistency of protein folding suggests that most computations in MD simulations are redundant. Indeed, taking the following abstract view of the folding process leads us to conclude that the protein folding problem \textit{must} be much simpler than the raw physics might suggest.
-
-\subsection{The size of conformational space}
-Simulation of protein folding can be equated to drawing a path through the space of possible 3-D conformations of a protein, with each timestep being mapped to a single element of that space. Simulating a full second using femtosecond timesteps would draw a quadrillion samples from this \textbf{conformational space}; though this may seem like a large quantity, a quadrillion samples is in fact minuscule relative to the size of the conformational space itself.
-
-To illustrate the general size of conformational space, note that 3-D conformations are generally parameterized by the set of three dihedral angles, $\psi, \phi, \omega$, between each conjoined pair of atoms. $\omega$ is usually uniformly restricted to be in the set $\{180^\circ, 0^\circ\}$ since peptide bonds are almost always planar, but $\psi$ and $\phi$ can take on all possible degrees. If we discretized the angles into 3 states each, a chain of 100 amino acids would thus have $3^198$ possible conformations for the 99 bonds between each conjoined pair of residues \cite{levinthal}. Even if all physically impossible conformations were removed, the number of conformations would still be on roughly this same order.
-
-\subsection{Levinthal's Paradox and Anfinsen's Dogma}
-With these numbers, it can be seen that even if a unique conformation was sampled each femtosecond since the beginning of time, the aforementioned 100-chain protein still would not have seen nearly all the possible conformations. This insight is known as \textbf{Levinthal's paradox}, and it shows that the process of protein folding cannot possibly be random. The sheer size of conformational space, combined with the empirical stability of the protein folds under the tremendously different initial conditions experienced in nature everyday shows that the protein folding process is almost surely determined. Therefore, most of the information obtained from protein folding simulations is irrelevant with respect to determining the resting conformation. A variant of this belief is known as \textbf{Anfinsen's Dogma}, which hypothesizes that the resting conformation is almost always fully determined by the amino acid sequence \cite{anfinsen}.
-
-\newpage 
-\vfill
-\begin{figure}[!h]
-  \includegraphics[width=\linewidth]{images/protein_structure.png}
-  \caption{An illustration of the different levels of protein structure. Graphic from \cite{genetic_analysis}}
-  \label{fig:proteinStructure}
-\end{figure}
-
-\subsection{Empirical hierarchy of protein structure}
-The \textbf{physics-based} view of protein folding is too granular to yield insights into the structure of protein folds. An approach that has seen more success is working directly with known protein structures to extrapolate to unknown structures. This \textbf{knowledge-based} approach assumes that protein structure forms an emergent system which can be studied in its own right, much like chemistry can be seen as an emergent property of the laws of physics.
-
-The vocabulary of protein structures is hierarchically divided into four tiers: \textit{primary, secondary, tertiary}, and \textit{quaternary}. An illustration of the different structures given by \autoref{fig:proteinStructure}. We go through each in turn.
-
-\subsubsection{Primary} Primary structure simply denotes the amino acid sequence comprising the protein. The alphabet of primary structure is composed of the amino acids themselves. Of roughly 500 naturally occurring amino acids, only 22 are used to construct proteins. Of these 22, only 20 are found in genetic code, and the other 2 are inserted after the protein's initial creation \cite{20proteins}.
-
-Sequences of 30 amino acids or less are generally considered peptides. Most proteins are comprised of several hundred amino acid residues, though the largest can go have as many as 27000 residues. Naively, this places the space of primary structure at roughly $20^{27000}$, an incomprehensible number. Of course, just as a single protein samples a minuscule amount of its possible conformations, the sum total of natural proteins only sample a minuscule amount of sequence space. A rudimentary estimate by \cite{sequenceExploration} places the number of protein sequences seen on the planet Earth at some point in history at roughly $4 * 10^{21}$, and argues this is around the true number of naturally viable proteins.
-
-\subsubsection{Secondary}
-
-\begin{figure}[!h]
-  \includegraphics[width=\linewidth]{images/secondary_structure.jpg}
-  \caption{Some examples of protein secondary structure. Graphic from \cite{secondaryStructure}}
-  \label{fig:secondaryStructure}
-\end{figure}
-
-Secondary structure describes local structures commonly seen in folded proteins. The most common secondary structures are $\alpha$-helices and $\beta$-sheets, with the rest following under the general \textit{random coil} designation. As secondary structures are constructs defining a local subset of a protein, there is no uniform definition of secondary structure. 
-
-The most common method of defining secondary structure is an algorithm called the \textit{Dictionary of Protein Secondary Structure} or \textit{DSSP} with an alphabet of 8 secondary structures \cite{dssp}. A Bayesian method called \textit{SST} attempts to quantitatively define secondary structure by framing secondary structure as a way to maximally compress conformational information \cite{sst}.
-
-\subsubsection{Tertiary}
-A protein's tertiary structure corresponds to our intuitive notion of protein structure, the 3-D conformation. As stated previously, conformational space or tertiary structure can be parameterized by the set of dihedral angles between neighboring residues in the amino acid chain. Though there are an astronomical number of possible conformations for any given residue chain, empirically proteins of different primary structures end up having similar tertiary structure, and so can be grouped into \textit{protein families}. 
-
-An estimate conducted by \cite{numberOfFolds} extrapolates the total number of tertiary folds, using the data of what protein families have been discovered, to be around 4000. Of these, 2000 are estimated to be naturally occurring and a minority of those 2000 comprise the vast majority of protein families seen in nature. In this study, protein folding families are defined by the SCOP classification methodology, which is in turn based off of primary sequence homology, an approach discussed in \autoref{sec:hmmPrimary}. The extrapolation is performed by fitting the maximum likelihood estimate of a stretched-exponential distribution estimating the total number of families and a probability distribution of their relative frequencies.
-
-\subsubsection{Quaternary}
-A large number of proteins do not function on their own. These proteins might be part of a \textit{multi-subunit complex} consisting of a group of proteins which collectively form a single structure. Such complexes form the quaternary structure of proteins. Since techniques for determining the quaternary structure of a protein complex largely follow the same approaches for mapping tertiary structure, no special attention will be paid in this paper to quaternary structure.
-
-\section{Hidden Markov Models for Mining Primary Structure Data} \label{sec:hmmPrimary}
-Though primary structures are the rawest form of protein data, they are also the most numerous available to knowledge-based techniques. Frequently, primary structures obtained from genome sequencing are the only evidence a protein exists. As of November 2019, UniProt, a leading database of biological sequences, contains 181787788 sequences, or roughly $1.8 * 10^8$ \cite{uniprot}. A breakdown is given in \autoref{tab:uniprot}. 
-
-\begin{table}[h!]
-    \centering
-       \begin{tabular}{|c||c||c|}
-        \hline
-        \hline
-        Protein existence & Entries & Percent \\ \hline
-        Evidence at protein level & 151242 & 0.08\% \\ \hline
-        Evidence at transcript level & 1297981 & 0.71\% \\ \hline
-        Inferred from homology & 45460655 & 25.01\% \\ \hline
-        Predicted & 134877910 & 74.20\% \\ \hline
-        \end{tabular}
-    \caption{Breakdown of entries in the UniProt database}
-    \label{tab:uniprot}
-\end{table}
-
-\subsection{Error-correcting codes for shotgun sequencing of a genome}
-
-
-\subsection{HMMs for Multiple Sequence Alignment}
-Knowing the primary structure of the protein does not give us anything near a deterministic calculation of the resting conformation a la Anfinsen's Dogma, but it does yield some information. In particular, if we have sequenced many organisms, studying the differences in how common proteins are coded yields information on which amino acids in the sequence are mutating together or \textbf{co-evolving}. Frequently, amino acids which co-evolve are physically close in the resting conformation. 
-
-
-The space of naturally occurring protein sequences can be estimated by sequencing the genomic data of various organisms. 
-
-extrapolate to the structures of unknown proteins, 
-
-The number of known folds is low. Closely related sequences tend to be close in structure. We can leverage data to get starting "templates" instead of recomputing everything from scratch.
-
-
-\section{Fragment Assembly With Secondary Structure}
-Can be classified into $\alpha$-helices and $\beta$-sheets.
-
-Fragment libraries
-
-\paragraph{Threading}
-
-\paragraph{Imaged structures deposited in the Protein Data Bank}
-
-\section{Knowledge-based energy potentials}
-
-\section{Finding the energy-minimizing conformation}
-
 \section{Conclusion}
+MSMs are a critical auxiliary method for protein folding molecular dynamics research. By grouping conformations into a hierarchical microstate and macrostate representation, MSMs provide high-level summaries of the distribution of possible protein folding trajectories. By being able to quantify and attribute uncertainty to individual states, MSMs allow focused simulations which converge to the required confidence level two orders of magnitude faster than naively repeating simulations.
 
 \printbibliography
 
