@@ -3,9 +3,10 @@
 \usepackage{biblatex}
 \usepackage{graphicx}
 \usepackage{hyperref}
+\usepackage{amsmath}
 \addbibresource{references.bib}
 
-\title{Inferential Methods for Protein Folding}
+\title{A Survey of Inferential Methods Applied to the Problem of Protein Folding}
 \author{Eric He}
 \date{November 2019}
 
@@ -16,7 +17,7 @@
 \section*{Abstract}
 The problem of protein folding is centered around understanding how the chain of amino acids comprising a protein folds into its stable, low-energy conformation. Though the laws of physics which govern the process are well-defined, naively using them to simulate folding is computationally intractable. As a result, the protein folding field makes heavy use of statistical methods to infer the structures of unknown proteins based on their similarities to known structures. 
 
-This paper considers the protein folding problem from the inferential perspective. We identify the disparate sources of data which yield information about protein structure, and discuss inferential methods designed to mine that data. The methods covered are:
+This paper considers the protein folding problem from the inferential perspective. Special attention is given to how standard probabilistic techniques are adapted to various use cases in the protein folding problem, such as analyzing molecular dynamics simulations or stitching together noisy protein sequence data obtained from genomic sequencing. The methods covered are:
 
 \begin{itemize}
     \item Bayesian scoring for deriving empirical, "knowledge-based" energy functions which are easier to minimize than the true thermodynamic energy
@@ -54,12 +55,6 @@ The native conformation determines a protein's ability to form chemical bonds wi
 
 Unfortunately, the minuscule size of proteins make it extremely difficult to map their structures. The only information of most known proteins are their amino acid sequences, derived from genomics data. Filling this gap is the goal of the protein folding problem. From a practical perspective, a mapping between a protein's sequence data and its corresponding structure would link what is known about a protein and what is needed to be known in order to usefully work with it. But more broadly, understanding protein structure provides the theoretical scaffolding needed to analyze biological systems as an emergent product of their underlying components.
 
-\begin{figure}[ht]
-  \includegraphics[width=\linewidth]{images/folding_pathways.jpg}
-  \caption{Different probable states of a protein fold derived by learning a Markov State Model on Molecular Dynamics simulations in \cite{pande2010}}
-  \label{fig:folding_pathways}
-\end{figure}
-
 \subsection{Physics underlying protein folding}
 The protein folding process is governed entirely by physical laws. The primary ones are:
 
@@ -78,7 +73,6 @@ The vast majority of proteins fold at speeds on the order of nanoseconds to hund
 \section{Using Molecular Dynamics to simulate protein folding}
 Since all physical laws governing protein folding are well-understood, computers can be used to simulate the protein folding process; this field is called \textbf{molecular dynamics} or \textbf{MD}. Unfortunately, simulations of the protein folding process require a tremendous amount of computing power to simulate the folding dynamics of even a single protein. 
 
-\subsection{The computational difficulties of MD simulations}
 The primary bottlenecks are the number of particle interactions involved and the amount of time steps to take. Though proteins fold in milliseconds ($10^{-3}$ seconds), simulations take timesteps on the order of femtoseconds ($10^{-15}$), requiring a quadrillion iterations to simulate a full second of folding \cite{md}. For each iteration, all interactions between atoms must be computed. This includes atoms belonging to the enveloping solvent, usually water molecules, which can be more numerous than the protein itself.
 
 To sacrifice some accuracy in order to cut computational cost, MD simulations make various simplifications. \cite{md} gives some examples:
@@ -97,19 +91,141 @@ To sacrifice some accuracy in order to cut computational cost, MD simulations ma
 
 Even with these speedups, MD simulations are still too slow to be useful purely for structure prediction. For example, a supercomputer purpose-built for protein folding computations, Anton, took around 100 days to simulate a single millisecond of the folding process for a protein comprised of around 1000 atoms \cite{Anton}.
 
-\subsection{Markov State Models for interpreting data from MD simulations}
-Despite their suboptimal properties for structure prediction, MD simulations are still valued because they depict the folding process itself. Apart from being theoretically important, this is also of special interest in the study of diseases which are caused by proteins misfolding away from the standard resting conformation; some examples where misfolded proteins are the suspected cause of a disease include Alzheimer's and Huntington's.
+\section{Markov State Models for interpreting data from MD simulations}
+Despite their suboptimal use for structure prediction, MD simulations are still valued because they depict the folding process itself. Apart from being theoretically important, this is also of special interest in the study of diseases which are caused by proteins misfolding away from the standard resting conformation; some examples where misfolded proteins are the suspected cause of a disease include Alzheimer's and Huntington's.
 
-To understand folding trajectories of a protein, it is not enough to simulate a single fold of the protein. Instead, a protein's folding process must be simulated many times to derive an understanding of the probability space over the protein's possible conformations. As a result, scientists working on large MD simulations must be able to both gather and comprehend vast amounts of time series data of a protein's probable conformation. I
+To understand folding trajectories of a protein, it is not enough to simulate a single fold of the protein. Instead, a protein's folding process must be simulated many times to derive an understanding of the probability space over the protein's possible conformations. As a result, scientists working on large MD simulations must be able to both gather and comprehend vast amounts of time series data of a protein's probable conformation. 
 
-An excellent tool to guide as well as understand simulation is the \textbf{Markov State Model}.  
+A ubiquitously used tool in MD, popularized by the Pande lab at Stanford is the \textbf{Markov State Model} or \textbf{MSM} \cite{pande2010}. MSMs group \textit{clusters} of conformations into states of a Markov chain; the folding process is viewed probabilistically as walking through states of the chain until reaching an absorbing state corresponding to the resting conformation. MSMs grant the ability to:
 
+\begin{enumerate}
+    \item Group together similar conformations into human-comprehensible clusters
+    \item Map which folding pathways are most favored by the protein
+    \item Adaptively sample conformations contributing high uncertainty to relevant metrics (such as the folding rate of the protein) to save computation time
+\end{enumerate}
 
+We begin with an intuitive example of MSMs, then explain how to construct and quantitatively analyze an MSM.
 
+\subsection{An example of an MSM}
 
+\begin{figure}[!h]
+  \includegraphics[width=\linewidth]{images/folding_pathways.jpg}
+  \caption{Different probable states of a protein fold derived by learning a Markov State Model on Molecular Dynamics simulations in \cite{pande2010}}
+  \label{fig:foldingPathways}
+\end{figure}
 
-\section{Heuristic methods for structure prediction \textit{must} exist}
-In nature, proteins regularly attain their resting conformations under a diverse set of initial conditions. The consistency of protein folding suggests that most computations in MD simulations are redundant. Indeed, taking the following abstract view of the folding process leads us to conclude that the protein folding problem \textit{must} be much simpler than the raw physics might suggest.
+Mathematically, the MSM is parameterized by a macrostate-macrostate transition matrix $T$, where the $i,j$th entry $T_{i,j}$ represents the probability of transitioning to macrostate $j$ while in macrostate $i$. 
+
+Each macrostate is comprised of a multitude of \textit{microstates}, themselves smaller clusters of conformational space. While the microstates are clustered according to \textit{structural} distances measuring how far apart two conformations are in physical space, the macrostates cluster microstates based on \textit{kinetic} distances measuring how frequently two conformations transition between each other during folding. 
+
+This hierarchical clustering is performed because while the ideal clusters should group together conformations which are close in free energy space, mapping free energy space is extremely difficult from both a computational and theoretical perspective. Thus, structural and kinetic distances are mixed together as an approximation to free energy space. 
+
+\autoref{fig:foldingPathways} gives us a pictorial depiction of an MSM. Each node represents a supercluster of conformations termed a \textit{macrostate}, with the relative size of the node being proportional to the expected time spent in that cluster. The directed edge $x \to y$ from two arbitrary macrostates $x$ and $y$ in the MSM is shown as an arrow, with the arrow's relative size being indicative of the speed and/or relative likelihood of transitioning to state $j$ from state $i$.
+
+The protein starts in state $a$, bordered in red, and eventually folds into the resting conformation at state $n$, bordered in green. The most direct and commonly used path is directly through state $m$, but in some situations the protein was shown to detour through states $b, c, e,$ and $j$ before reaching $m$. Rather than just considering one or two folding trajectories, MSMs generate probability distributions over folding pathways, which can be sampled by stepping through the macrostate's transition matrix, then emitting a microstate based on the particular macrostate sampled, much as in a Hidden Markov Model. 
+
+\subsection{Constructing the MSM}
+\subsubsection{Clustering microstates using a modified $k$-means algorithm}
+The first step in constructing an MSM is deciding how to create the aforementioned \textit{clusters} of conformations. We walk through an approach implemented by the Pande lab in their `MSMBuilder` \cite{msmbuilder} software package is a variation of the k-means clustering algorithm in which centers for new clusters are iteratively initialized to occupy the point furthest from all the existing cluster centers \cite{pande2009}. This variation of k-means encourages clusters to have roughly equal radii. The metric used for this clustering algorithm is a \textit{structural} (rather than kinetic) distance between two conformations known as \textit{Root Mean-Squared Deviation}, or \textit{RMSD}.
+
+This methodology is used to create fine-grained clusters, termed \textit{microstates}. Typically between $10,000$ and $100,000$ microstates are created. 
+
+\subsubsection{Computing the microstate transition probability matrix $T$}
+The transition probabilities between microstates $i$ and $j$ can be naively computed as the \textit{maximum likelihood estimate} (MLE), corresponding to the number of times state $i$ transitioned to state $j$, divided by the total number of transitions from state $i$ to other states $k \neq j$ (including $k=i$). If $C_{ij}$ corresponds to the $i,j$th entry of a \textit{count matrix} tabulating the number of times state $i$ transited to state $j$, the MLE is given the formula
+
+$$T_{ij} = \dfrac{C_{ij}}{\sum_k C_{ik}}$$
+
+The MLE, however, can lead to noisy estimates for sparsely sampled microstates. Moreover, it might not satisfy the property of \textbf{detailed balance}, a kinetic property of systems at equilibrium stating that the average rate of transition from state $i$ to state $j$ is equal to the average rate of transition from state $j$ to state $i$. A Markov chain is said to be reducible or to have detailed balance if the following equation is satisfied for arbitrary states $i$ and $j$:
+
+$$\pi_i T_{ij} = \pi_j T_{ji}$$
+
+where $\pi_i$ is the stationary probability of being in state $i$.
+
+Thus, a more principled way of estimating the transition probabilities is to restrict the space of Markov chains to the ones satisfying detailed balance. A closed-form solution for the MLE reversible Markov chain $X$ in this space is given by the following equation:
+
+$$T_{ij} = \dfrac{C_{ij} + C_{ji}}{\frac{C_i}{T_i} + \frac{C_j}{T_j}}$$
+
+According to \cite{pande2009}, this method works well for small MSMs, but takes time to converge for larger matrices and can see poor performance when the MD simulation is noisy. 
+
+Given the microstate transition matrix $M$, kinetic relationships can be used to further cluster microstates into macrostates. This can be done by looking at the dominant eigenvectors of $M$. One method, known as \textit{Perron Cluster Cluster Analysis} or \textit{PCCA}, partitions microstates into \textit{meta-stable} macrostates by finding a grouping such that the corresponding macrostate transition matrix $T$ of specified size $d$ has the largest possible trace \cite{fishbach}. Having the largest trace indicates that each macrostate groups together as many kinetically similar microstates as possible, since inter-state transitions are small.
+
+\subsubsection{Incorporating Bayesian priors over MSM parameters}
+A powerful, but computationally demanding way to evaluate estimations of the macrostate-macrostate transition matrix $T$, the macrostate-microstate emission matrix $\Theta$, and the choice of macrostate clustering or \textit{lumping} $L$ is given in \cite{msmprior}. 
+
+The method is to further impose priors on the macro and microstates and use those priors to compute \textit{Bayes factors}. The Bayes factor is a ratio of two posterior probabilities; since the posterior factors in the prior, complex models are penalized by the Bayes factor since even they have a lower prior probability; thus, to be accepted over a simpler model, a more complex model must have a sufficiently higher likelihood. The recommended methodology is as follows:
+
+\paragraph{The prior over $\Theta$} is a Dirichlet prior. The emissions probability for a state $theta_j$ follows a Multinoulli distribution, whose conjugate prior is Dirichlet. 
+
+\paragraph{The prior over $T$} can also be a Dirichlet prior over stochastic matrices, but from the previous discussion, a better prior is the Dirichlet prior restricted to the space of stochastic matrices satisfying detailed balance. The density has a closed form solution, but the formula is quite complex. The derivation is found in \cite{diaconis}.
+
+\paragraph{Selecting $L$ using Bayes factors} The optimal $L$ for a certain macrostate size $d$ can be found using PCCA or its more robust variants, PCCA+ and PCCA++. Given two such choices $L_1$ and $L_2$ from the data $D$, the Bayes factor can be computed as the ratio of the posteriors
+
+$$\dfrac{P(L_1 | D)}{P(L_2|D)} = \dfrac{P(D|L_1)}{P(D|L_2)}\dfrac{P(L_1)}{P(L_2)} 
+= \dfrac{\int_T \int_\Theta P(D|L_1, T, \Theta)P(T, \Theta | L_1)}
+{\int_T \int_\Theta P(D|L_2,T,\Theta)P(T, \Theta | L_2)}$$
+
+Interpreting the Bayes factor is straightforward. If the Bayes factor is less than $1$, then $L_2$ should be preferred over $L_1$. If the Bayes factor is greater than $1$, then $L_1$ should be preferred to $L_1$. If the priors over $T$ and $\Theta$ are both Dirichlet, then an analytical solution for the Bayes factor can be given. Using the detailed balance Dirichlet prior for $T$, however, requires Monte Carlo integration.
+
+\subsection{Validating the Markovian properties of an MSM}
+An MSM makes the fundamental \textit{memoryless} or \textit{Markovian} assumption that our expectation of future states is independent from the knowledge of past states when conditioned on the present; that is, information on the current conditions of a protein is all that is needed to forecast its future folds. This assumption is fundamentally correct for individual conformations, but improper aggregations of conformations can violate the Markov assumption.
+
+\subsubsection{A non-Markovian aggregation of states}
+A straightforward example of an improper aggregation would be aggregating states $c$ and $m$ in \autoref{fig:foldingPathways} into a hypothetical superstate $o$. The Markovian assumption would say that given the protein is in superstate $o$, no further information is needed to predict the future folding trajectory. However, if the protein transitioned into state $o$ from state $b$, it is highly likely that the protein will go towards states $e$ or $b$ or $a$, since the protein is actually in state $c \in o$. On the other hand, if the protein entered state $o$ from state $a$, it is almost certain to be in state $m \in o$ and therefore is almost certain to transition to the resting conformation $n$.
+
+The superstate $o$ thus exhibits non-Markovian properties, since its transition probabilities are largely a function of what state the protein was in previous to $o$, rather than depending solely on $o$ itself.
+
+\subsubsection{Geometrically distributed leaving times}
+The Markovian assumption implies strong distributional effects which can be cast as statistical tests for empirical verification. One such test observes that for a candidate transition matrix $T$, the expected amount of time a fold remains in a specified state $i$ follows a geometric distribution. The geometric distribution parameter $p_i$ for state $i$ corresponds to the probability of remaining in state $i$ upon experiencing a pass through $T$; this is simply $T_{i,i}$. If the empirical leaving times are not distributed according to their corresponding geometric distributions, this is a strong indication of non-Markovian dynamics.
+
+\subsubsection{The Swope-Pitera eigenvalue test}
+Another test is the \textbf{Swope-Pitera eigenvalue test} described in \cite{swopepitera}, which examines the magnitude of the eigenvalues of the transition matrix $T$ compared to the eigenvalues of $T^n$. 
+
+To establish the foundations of the Swope-Pitera test, some of the spectral properties of aperiodic and irreducible Markov chains must first be presented. Such a Markov chain has all eigenvalues but one less than $1$, with this last eigenvalue being equal to $1$ (\textit{unity}). An eigenvector with eigenvalue $\mu$ represents a state distribution which decays towards the stationary distribution at rate $\mu^t$ where $t$ is the number of transitions through the transition matrix $T$. Thus, the states with larger eigenvalues decay more slowly, while the eigenvector corresponding to unity represents the state which does not decay, the stationary distribution itself. The eigenvectors of the matrix $T^t$ are equivalent to the eigenvectors of $T$, with the corresponding eigenvalues $\mu_t = \mu^t$.
+
+The Swope-Pitera test evaluates whether the eigenvalues of an empirically constructed matrix with timestep length $t$ are exponentially decaying as expected. That is, the eigenvalues $\{\mu_t\}$ of the length-$t$ transition matrix $T_t$ should be roughly equivalent to $\{\mu^t\}$, where $\{\mu\}$ is the set of eigenvalues of the length-$1$ transition matrix $T_1$. Lack of exponential decay is an indication of non-Markovian dynamics.
+
+\subsection{Adaptive Sampling with an MSM}
+Given an MSM, it is possible to estimate quantities such as the \textit{mean first passage time}, which corresponds to the expected time a conformation takes to fold. Importantly, we can also compute our uncertainty around these estimates and even identify which states are contributing the most variance. This provides a critical advantage, since by upsampling or \textbf{adaptively sampling} these uncertainty-contributing states, sufficiently low uncertainty can be achieved using orders of magnitudes less simulation steps, according to \cite{pande2010}. The adaptive sampling method discussed here comes from \cite{adaptivesampling}.
+
+\subsubsection{Estimating a distribution for the states of $T$}
+To measure the uncertainty of metrics such as mean first passage time, we must first measure the uncertainty of the underlying transition probabilities. Recall that the distribution of transition probabilities for $T$ is a Multinoulli. Since the Multinoulli's true parameters are unknown, we assume a distribution over possible Multinoulli distributions using the conjugate prior, the Dirichlet distribution.
+
+If the prior over the Dirichlet parameters is the vector $\boldsymbol{\alpha}$ and the empirical transitions form the counts $\boldsymbol{z}$, then the posterior distribution is given by a Dirichlet with parameter $\boldsymbol{\mu} = \boldsymbol{\alpha} + \boldsymbol{z}$.
+
+Directly using the Dirichlet distribution for sampling transitions in $T$ is computationally expensive, so the distribution is approximated using a multivariate normal distribution or \textit{MVN}. A Central Limit Theorem justifies the approximation with the statement that the Dirichlet distribution approaches a Multivariate Normal distribution as the number of samples goes to $\infty$. 
+
+Specifically, for a specific state $i$, as the vector of Dirichlet counts $\boldsymbol{\mu_i}$ has magnitude $w_i = |\boldsymbol{\mu_i}| \to \infty$ and as $\dfrac{\boldsymbol{\mu_i}}{w_i} \to \boldsymbol{v_i}$ for some fixed probability distribution $\boldsymbol{v_i}$, the Dirichlet distribution parameterized by $\boldsymbol{\mu_i}$ converges pointwise to a Multivariate normal distribution with parameters $\boldsymbol{\mu_{\text{norm, i}}} = \dfrac{\boldsymbol{\mu_{\text{dir, i}}}}{w}$ and covariance matrix $\boldsymbol{\Sigma_i} = \dfrac{1}{w_i(w_i+1)}(w_i\mu_i - \mu_i\mu^T_i)$.
+
+\subsubsection{Monte Carlo estimation of a target metric's variance}
+The transition matrix $T$ allows the deterministic calculation of relevant metrics. One example is the \textit{mean first passage time}, the expected amount of time it takes a given conformation to fold into the resting conformation. The formula for mean first passage time $x_i$ of state $i$ given the transition matrix $T$ is as follows:
+
+\begin{equation*}
+    x_i =
+    \begin{cases}
+    \Delta t + \sum_{j=1}^K x_jT_{ij} & i \neq K \\
+    0 & i = K
+    \end{cases}
+\end{equation*}
+
+\noindent where $K$ is the row of $T$ corresponding to the resting conformation.
+
+Frequently we are also interested in our uncertainty around these metrics. Note that this uncertainty is a concept separate from the natural variance of the metric; the former is an estimate of our lack of knowledge based on the Dirichlet distribution of each row in $T$, while the latter is an estimate of the actual variance in folding time based on the hypothetical true Multinoulli distribution of each row in $T$. 
+
+The variance of the Dirichlet distribution around a particular row can be reduced by generating more samples of the corresponding state, but the variance of the Multinoulli is a fixed constant. Thus, when we discuss reducing variance, we are talking about reducing the variance of our Dirichlet estimate of the true Multinoulli distribution rather than the variance of the Multinoulli itself.
+
+When a formula for the uncertainty of a target metric is intractable or inconvenient to compute, it can be estimated by generating random draws from the corresponding rows of $T$, or their MVN approximations, to create Monte Carlo samples of the target metric from which the uncertainty can be estimated. 
+
+For many metrics, this formula for the uncertainty cannot be decomposed into a sum of the variances of individual rows of $T$ unless a first-order Taylor approximation of the metric is performed. This approximation reduces the formula to a set of linear equations with easily solvable, closed-form solutions.
+
+\subsubsection{Targeted sampling to achieve minimal variance}
+Given an estimate of variance of the target metric which can be decomposed into the contributions of the individual rows of $T$, it is straightforward to design an adaptive sampling algorithm to reduce this variance. 
+
+Given a fixed number of additional samples $m$ to generate, states should be ranked in descending order of their expected change in variance by adding those $m$ samples. Then $m$ simulations starting from microstates within state $i$ can be started. 
+
+The results of these $m$ simulations can be used to recompute the estimate of $T$ and determine the next state to simulate $m$ times.
+
+\section{Heuristics for structure prediction must exist}
+Moving away from MD methods, we now consider directly predicting the resting conformation given the amino acid sequence. This line of inquiry is motivated by the following observation: in nature, proteins regularly attain their resting conformations under a diverse set of initial conditions. The consistency of protein folding suggests that most computations in MD simulations are redundant. Indeed, taking the following abstract view of the folding process leads us to conclude that the protein folding problem \textit{must} be much simpler than the raw physics might suggest.
 
 \subsection{The size of conformational space}
 Simulation of protein folding can be equated to drawing a path through the space of possible 3-D conformations of a protein, with each timestep being mapped to a single element of that space. Simulating a full second using femtosecond timesteps would draw a quadrillion samples from this \textbf{conformational space}; though this may seem like a large quantity, a quadrillion samples is in fact minuscule relative to the size of the conformational space itself.
@@ -127,22 +243,36 @@ With these numbers, it can be seen that even if a unique conformation was sample
   \label{fig:proteinStructure}
 \end{figure}
 
-\section{The hierarchical structure of protein folds, as seen in data}
+\subsection{Empirical hierarchy of protein structure}
 The \textbf{physics-based} view of protein folding is too granular to yield insights into the structure of protein folds. An approach that has seen more success is working directly with known protein structures to extrapolate to unknown structures. This \textbf{knowledge-based} approach assumes that protein structure forms an emergent system which can be studied in its own right, much like chemistry can be seen as an emergent property of the laws of physics.
 
 The vocabulary of protein structures is hierarchically divided into four tiers: \textit{primary, secondary, tertiary}, and \textit{quaternary}. An illustration of the different structures given by \autoref{fig:proteinStructure}. We go through each in turn.
 
-\paragraph{Primary} Primary structure simply denotes the amino acid sequence comprising the protein. The alphabet of primary structure is composed of the amino acids themselves. Of roughly 500 naturally occurring amino acids, only 22 are used to construct proteins. Of these 22, only 20 are found in genetic code, and the other 2 are inserted after the protein's initial creation \cite{20proteins}.
+\subsubsection{Primary} Primary structure simply denotes the amino acid sequence comprising the protein. The alphabet of primary structure is composed of the amino acids themselves. Of roughly 500 naturally occurring amino acids, only 22 are used to construct proteins. Of these 22, only 20 are found in genetic code, and the other 2 are inserted after the protein's initial creation \cite{20proteins}.
 
-Sequences of 30 amino acids or less are generally considered peptides. Most proteins are comprised of several hundred amino acid residues, though the largest can go have as many as 27000 residues. Naively, this places the space of primary structure at roughly $20^{27000}$, an incomprehensible number. Of course, just as a single protein samples a minuscule amount of its possible conformations, the sum total of natural proteins only sample a minuscule amount of sequence space. A simple estimate by \cite{sequenceExploration} places the number of sampled protein sequences seen at some point in history at roughly $4 * 10^{21}$, and argues this is around the true number of naturally viable proteins.
+Sequences of 30 amino acids or less are generally considered peptides. Most proteins are comprised of several hundred amino acid residues, though the largest can go have as many as 27000 residues. Naively, this places the space of primary structure at roughly $20^{27000}$, an incomprehensible number. Of course, just as a single protein samples a minuscule amount of its possible conformations, the sum total of natural proteins only sample a minuscule amount of sequence space. A rudimentary estimate by \cite{sequenceExploration} places the number of protein sequences seen on the planet Earth at some point in history at roughly $4 * 10^{21}$, and argues this is around the true number of naturally viable proteins.
 
-\paragraph{Secondary}
+\subsubsection{Secondary}
 
-\paragraph{Tertiary}
+\begin{figure}[!h]
+  \includegraphics[width=\linewidth]{images/secondary_structure.jpg}
+  \caption{Some examples of protein secondary structure. Graphic from \cite{secondaryStructure}}
+  \label{fig:secondaryStructure}
+\end{figure}
 
-\paragraph{Quaternary}
+Secondary structure describes local structures commonly seen in folded proteins. The most common secondary structures are $\alpha$-helices and $\beta$-sheets, with the rest following under the general \textit{random coil} designation. As secondary structures are constructs defining a local subset of a protein, there is no uniform definition of secondary structure. 
 
-\section{Hidden Markov Models for Mining Primary Structure Data}
+The most common method of defining secondary structure is an algorithm called the \textit{Dictionary of Protein Secondary Structure} or \textit{DSSP} with an alphabet of 8 secondary structures \cite{dssp}. A Bayesian method called \textit{SST} attempts to quantitatively define secondary structure by framing secondary structure as a way to maximally compress conformational information \cite{sst}.
+
+\subsubsection{Tertiary}
+A protein's tertiary structure corresponds to our intuitive notion of protein structure, the 3-D conformation. As stated previously, conformational space or tertiary structure can be parameterized by the set of dihedral angles between neighboring residues in the amino acid chain. Though there are an astronomical number of possible conformations for any given residue chain, empirically proteins of different primary structures end up having similar tertiary structure, and so can be grouped into \textit{protein families}. 
+
+An estimate conducted by \cite{numberOfFolds} extrapolates the total number of tertiary folds, using the data of what protein families have been discovered, to be around 4000. Of these, 2000 are estimated to be naturally occurring and a minority of those 2000 comprise the vast majority of protein families seen in nature. In this study, protein folding families are defined by the SCOP classification methodology, which is in turn based off of primary sequence homology, an approach discussed in \autoref{sec:hmmPrimary}. The extrapolation is performed by fitting the maximum likelihood estimate of a stretched-exponential distribution estimating the total number of families and a probability distribution of their relative frequencies.
+
+\subsubsection{Quaternary}
+A large number of proteins do not function on their own. These proteins might be part of a \textit{multi-subunit complex} consisting of a group of proteins which collectively form a single structure. Such complexes form the quaternary structure of proteins. Since techniques for determining the quaternary structure of a protein complex largely follow the same approaches for mapping tertiary structure, no special attention will be paid in this paper to quaternary structure.
+
+\section{Hidden Markov Models for Mining Primary Structure Data} \label{sec:hmmPrimary}
 Though primary structures are the rawest form of protein data, they are also the most numerous available to knowledge-based techniques. Frequently, primary structures obtained from genome sequencing are the only evidence a protein exists. As of November 2019, UniProt, a leading database of biological sequences, contains 181787788 sequences, or roughly $1.8 * 10^8$ \cite{uniprot}. A breakdown is given in \autoref{tab:uniprot}. 
 
 \begin{table}[h!]
@@ -174,24 +304,20 @@ extrapolate to the structures of unknown proteins,
 The number of known folds is low. Closely related sequences tend to be close in structure. We can leverage data to get starting "templates" instead of recomputing everything from scratch.
 
 
-\section{Fragment Assembly for Assembling Secondary structure}
+\section{Fragment Assembly With Secondary Structure}
 Can be classified into $\alpha$-helices and $\beta$-sheets.
 
 Fragment libraries
 
 \paragraph{Threading}
 
-\section{Tertiary structure}
-Only about 1000 general forms, but the number of angles, contacts, etc. are legion
-
 \paragraph{Imaged structures deposited in the Protein Data Bank}
 
-\paragraph{Folding trajectories from molecular dynamics simulations}
+\section{Knowledge-based energy potentials}
 
-\paragraph{Guesses from existing folding software}
+\section{Finding the energy-minimizing conformation}
 
-\section{Knowledge-based energy functions derived from data of known structures}
-
+\section{Conclusion}
 
 \printbibliography
 
